@@ -7,6 +7,7 @@ import { openaiChat, getOpenAIClient } from './providers/openai';
 import { geminiChat, getGeminiClient } from './providers/gemini';
 import { claudeChat, getClaudeClient } from './providers/claude';
 import { perplexityChat, getPerplexityClient } from './providers/perplexity';
+import { groqChat, getGroqClient } from './providers/groq';
 
 const TIMEOUT = env.AI_TIMEOUT_MS;
 
@@ -25,7 +26,7 @@ export interface VictimInterviewResult {
 async function storeTranscript(
   disputeId: mongoose.Types.ObjectId,
   role: 'BULLY' | 'VICTIM' | 'SENTINEL' | 'MEDIATOR' | 'CLERK' | 'VALIDATOR',
-  provider: 'OPENAI' | 'GEMINI' | 'CLAUDE' | 'PERPLEXITY',
+  provider: 'OPENAI' | 'GEMINI' | 'CLAUDE' | 'PERPLEXITY' | 'GROQ',
   input: string,
   output: string,
   tokensUsed: number
@@ -49,12 +50,12 @@ export async function interviewBully(
   const systemPrompt = `You are a mediator analyzing the accused person's intent and emotional state. Output JSON: {"remorseScore": 0-100, "apologyDetected": boolean}. Be concise.`;
 
   const tasks: Array<() => Promise<{ content: string; tokensUsed: number }>> = [];
-  if (getOpenAIClient()) tasks.push(() => openaiChat(systemPrompt, context, { timeout: TIMEOUT }));
-  if (getClaudeClient()) tasks.push(() => claudeChat(systemPrompt, context, { timeout: TIMEOUT }));
-  if (getGeminiClient()) tasks.push(() => geminiChat(systemPrompt, context, { timeout: TIMEOUT }));
-  if (getPerplexityClient()) tasks.push(() => perplexityChat(systemPrompt, context, { timeout: TIMEOUT }));
-
-  const providers = ['OPENAI', 'CLAUDE', 'GEMINI', 'PERPLEXITY'].slice(0, tasks.length);
+  const providers: string[] = [];
+  if (getOpenAIClient()) { tasks.push(() => openaiChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('OPENAI'); }
+  if (getClaudeClient()) { tasks.push(() => claudeChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('CLAUDE'); }
+  if (getGeminiClient()) { tasks.push(() => geminiChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('GEMINI'); }
+  if (getPerplexityClient()) { tasks.push(() => perplexityChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('PERPLEXITY'); }
+  if (getGroqClient()) { tasks.push(() => groqChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('GROQ'); }
   const results = await Promise.allSettled(tasks.map((t) => t()));
 
   let remorseSum = 0;
@@ -65,7 +66,7 @@ export async function interviewBully(
     const provider = providers[i];
     if (settled.status === 'fulfilled') {
       const { content, tokensUsed } = settled.value;
-      storeTranscript(disputeId, 'BULLY', provider as 'OPENAI' | 'GEMINI' | 'CLAUDE' | 'PERPLEXITY', context, content, tokensUsed).catch((e) => logger.error('Store transcript', e));
+      storeTranscript(disputeId, 'BULLY', provider as 'OPENAI' | 'GEMINI' | 'CLAUDE' | 'PERPLEXITY' | 'GROQ', context, content, tokensUsed).catch((e) => logger.error('Store transcript', e));
       transcripts.push({ provider, input: context, output: content, tokensUsed });
       try {
         const cleaned = content.replace(/```json?\s*/g, '').trim();
@@ -94,11 +95,11 @@ export async function interviewVictim(
   const systemPrompt = `You are a mediator assessing harm to the victim. Output JSON: {"harmLevel": 0-100, "emotionalDistress": 0-100}. Be concise.`;
 
   const tasks: Array<() => Promise<{ content: string; tokensUsed: number }>> = [];
-  if (getOpenAIClient()) tasks.push(() => openaiChat(systemPrompt, context, { timeout: TIMEOUT }));
-  if (getClaudeClient()) tasks.push(() => claudeChat(systemPrompt, context, { timeout: TIMEOUT }));
-  if (getGeminiClient()) tasks.push(() => geminiChat(systemPrompt, context, { timeout: TIMEOUT }));
-
-  const providers = ['OPENAI', 'CLAUDE', 'GEMINI'].slice(0, tasks.length);
+  const providers: string[] = [];
+  if (getOpenAIClient()) { tasks.push(() => openaiChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('OPENAI'); }
+  if (getClaudeClient()) { tasks.push(() => claudeChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('CLAUDE'); }
+  if (getGeminiClient()) { tasks.push(() => geminiChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('GEMINI'); }
+  if (getGroqClient()) { tasks.push(() => groqChat(systemPrompt, context, { timeout: TIMEOUT })); providers.push('GROQ'); }
   const results = await Promise.allSettled(tasks.map((t) => t()));
 
   let harmSum = 0;
@@ -109,7 +110,7 @@ export async function interviewVictim(
     const provider = providers[i];
     if (settled.status === 'fulfilled') {
       const { content, tokensUsed } = settled.value;
-      storeTranscript(disputeId, 'VICTIM', provider as 'OPENAI' | 'GEMINI' | 'CLAUDE', context, content, tokensUsed).catch((e) => logger.error('Store transcript', e));
+      storeTranscript(disputeId, 'VICTIM', provider as 'OPENAI' | 'GEMINI' | 'CLAUDE' | 'GROQ', context, content, tokensUsed).catch((e) => logger.error('Store transcript', e));
       transcripts.push({ provider, input: context, output: content, tokensUsed });
       try {
         const cleaned = content.replace(/```json?\s*/g, '').trim();
@@ -143,18 +144,21 @@ export async function clerkSummarize(
 
   const openai = getOpenAIClient();
   const gemini = getGeminiClient();
+  const groq = getGroqClient();
   const fn = openai
     ? () => openaiChat(systemPrompt, payload, { timeout: TIMEOUT })
     : gemini
     ? () => geminiChat(systemPrompt, payload, { timeout: TIMEOUT })
+    : groq
+    ? () => groqChat(systemPrompt, payload, { timeout: TIMEOUT })
     : null;
 
-  if (!fn) throw new Error('No summarizer (OpenAI or Gemini) configured');
+  if (!fn) throw new Error('No summarizer (OpenAI, Gemini, or Groq) configured');
   const { content, tokensUsed } = await fn();
   await storeTranscript(
     disputeId,
     'CLERK',
-    openai ? 'OPENAI' : 'GEMINI',
+    openai ? 'OPENAI' : gemini ? 'GEMINI' : groq ? 'GROQ' : 'OPENAI',
     payload,
     content,
     tokensUsed

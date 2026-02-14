@@ -7,7 +7,7 @@ export type AITranscriptRole =
   | 'MEDIATOR'
   | 'CLERK'
   | 'VALIDATOR';
-export type AIProvider = 'OPENAI' | 'GEMINI' | 'CLAUDE' | 'PERPLEXITY';
+export type AIProvider = 'OPENAI' | 'GEMINI' | 'CLAUDE' | 'PERPLEXITY' | 'GROQ';
 
 export interface IAITranscript extends Document {
   disputeId: mongoose.Types.ObjectId;
@@ -29,7 +29,7 @@ const AITranscriptSchema = new Schema<IAITranscript>(
     },
     provider: {
       type: String,
-      enum: ['OPENAI', 'GEMINI', 'CLAUDE', 'PERPLEXITY'],
+      enum: ['OPENAI', 'GEMINI', 'CLAUDE', 'PERPLEXITY', 'GROQ'],
       required: true,
     },
     input: { type: String, required: true },

@@ -24,7 +24,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
   const subClient = getRedisSubscriber();
   io = new Server(httpServer, {
     cors: {
-      origin: env.CORS_ORIGINS.split(',').map((s) => s.trim()),
+      origin: env.CORS_ORIGINS.split(',').map((s: string) => s.trim()),
       methods: ['GET', 'POST'],
     },
     adapter: createAdapter(pubClient, subClient),
@@ -77,6 +77,8 @@ export function initSocketServer(httpServer: HttpServer): Server {
           senderId: new mongoose.Types.ObjectId(userId),
           message: payload.message,
         });
+        const sender = await User.findById(userId).select('username').lean();
+        const senderUsername = sender?.username ?? 'Unknown';
         const { getMessagesForRoom } = await import('../services/messageService');
         const messages = await getMessagesForRoom(payload.roomId, 1);
         const last = messages[messages.length - 1];
@@ -84,6 +86,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
           messageId: result.messageId,
           roomId: payload.roomId,
           senderId: userId,
+          senderUsername,
           message: payload.message,
           toxicityScore: result.toxicityScore,
           flagged: result.flagged,
@@ -97,20 +100,55 @@ export function initSocketServer(httpServer: HttpServer): Server {
           const dispute = await getDispute(new mongoose.Types.ObjectId(result.disputeId));
           if (dispute) {
             const disputeIdObj = dispute._id as mongoose.Types.ObjectId;
-            io?.to(payload.roomId).emit('disputeCreated', { dispute });
+            const bullyIdStr = dispute.bullyId?.toString?.() ?? (dispute.bullyId as mongoose.Types.ObjectId).toString();
+            const victimIdStr = dispute.victimId?.toString?.() ?? (dispute.victimId as mongoose.Types.ObjectId).toString();
+            const [bullyUser, victimUser] = await Promise.all([
+              User.findById(bullyIdStr).select('username').lean(),
+              User.findById(victimIdStr).select('username').lean(),
+            ]);
+            const bullyUsername = bullyUser?.username ?? 'Unknown';
+            const victimUsername = victimUser?.username ?? 'Unknown';
+            const disputePayload = {
+              ...dispute,
+              disputeId: disputeIdObj.toString(),
+              bullyUsername,
+              victimUsername,
+              bullyId: bullyIdStr,
+              victimId: victimIdStr,
+            };
+            io?.to(payload.roomId).emit('disputeCreated', { dispute: disputePayload });
             const bullyRoom = `reflection-${disputeIdObj}`;
             const victimRoom = `safety-${disputeIdObj}`;
-            io?.to(payload.roomId).emit('courtModeActivated', { disputeId: disputeIdObj, caseNumber: dispute.caseNumber });
+            io?.to(payload.roomId).emit('courtModeActivated', {
+              disputeId: disputeIdObj.toString(),
+              caseNumber: dispute.caseNumber,
+              bullyUsername,
+              victimUsername,
+              bullyId: bullyIdStr,
+              victimId: victimIdStr,
+            });
             io?.sockets.sockets.forEach((s) => {
               const authSock = s as AuthenticatedSocket;
-              const uid = dispute.bullyId?.toString?.() ?? (dispute.bullyId as mongoose.Types.ObjectId).toString();
-              const vid = dispute.victimId?.toString?.() ?? (dispute.victimId as mongoose.Types.ObjectId).toString();
-              if (authSock.userId === uid) {
+              if (authSock.userId === bullyIdStr) {
                 s.join(bullyRoom);
-                s.emit('userIsolated', { room: bullyRoom, role: 'bully', disputeId: disputeIdObj });
-              } else if (authSock.userId === vid) {
+                s.emit('userIsolated', {
+                  room: bullyRoom,
+                  role: 'bully',
+                  disputeId: disputeIdObj.toString(),
+                  bullyUsername,
+                  victimUsername,
+                  caseNumber: dispute.caseNumber,
+                });
+              } else if (authSock.userId === victimIdStr) {
                 s.join(victimRoom);
-                s.emit('userIsolated', { room: victimRoom, role: 'victim', disputeId: disputeIdObj });
+                s.emit('userIsolated', {
+                  room: victimRoom,
+                  role: 'victim',
+                  disputeId: disputeIdObj.toString(),
+                  bullyUsername,
+                  victimUsername,
+                  caseNumber: dispute.caseNumber,
+                });
               }
             });
             io?.to(payload.roomId).emit('aiProgressUpdate', { disputeId: disputeIdObj, stage: 'investigating' });
@@ -132,10 +170,6 @@ export function initSocketServer(httpServer: HttpServer): Server {
         logger.error('sendMessage socket error', { error: e });
         cb?.(e as Error);
       }
-    });
-
-    socket.on('caseReady', (disputeId: string) => {
-      io?.to(disputeId).emit('caseReady', { disputeId });
     });
 
     socket.on('voteCast', async (payload: { disputeId: string; vote: 'FORGIVE' | 'SANCTION' }, cb?: (err: Error | null) => void) => {

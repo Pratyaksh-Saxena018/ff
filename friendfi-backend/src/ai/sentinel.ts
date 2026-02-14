@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { openaiModeration, getOpenAIClient } from './providers/openai';
 import { geminiClassifyToxicity, getGeminiClient } from './providers/gemini';
 import { claudeSafetyCheck, getClaudeClient } from './providers/claude';
+import { runProfanityFilter } from './profanityFilter';
 
 export interface SentinelResult {
   toxicityScore: number;
@@ -12,7 +13,7 @@ export interface SentinelResult {
   providerResults: Array<{ provider: string; score: number; flagged: boolean; error?: string }>;
 }
 
-const WEIGHTS = { openai: 0.4, gemini: 0.35, claude: 0.25 };
+const WEIGHTS: Record<string, number> = { openai: 0.4, gemini: 0.35, claude: 0.25 };
 
 export async function runSentinelLayer(messageText: string): Promise<SentinelResult> {
   const providerResults: SentinelResult['providerResults'] = [];
@@ -21,11 +22,9 @@ export async function runSentinelLayer(messageText: string): Promise<SentinelRes
   const openaiPromise = getOpenAIClient()
     ? openaiModeration(messageText).then((r) => ({ provider: 'openai', ...r }))
     : Promise.reject(new Error('OpenAI not configured'));
-
   const geminiPromise = getGeminiClient()
     ? geminiClassifyToxicity(messageText).then((r) => ({ provider: 'gemini', ...r }))
     : Promise.reject(new Error('Gemini not configured'));
-
   const claudePromise = getClaudeClient()
     ? claudeSafetyCheck(messageText).then((r) => ({ provider: 'claude', ...r }))
     : Promise.reject(new Error('Claude not configured'));
@@ -54,12 +53,11 @@ export async function runSentinelLayer(messageText: string): Promise<SentinelRes
 
   const successCount = providerResults.filter((r) => !r.error).length;
   const humanReview = successCount < 2;
-  if (humanReview) {
-    logger.info('Sentinel: marking for human review (2/3 providers failed)', { errors });
-  }
 
   let toxicityScore = 0;
-  if (providerResults.length > 0) {
+  let flagged = providerResults.some((r) => r.flagged && !r.error);
+
+  if (successCount >= 2) {
     toxicityScore = Math.round(
       providerResults
         .filter((r) => !r.error)
@@ -70,9 +68,17 @@ export async function runSentinelLayer(messageText: string): Promise<SentinelRes
         (3 / Math.max(1, successCount))
     );
     toxicityScore = Math.min(100, toxicityScore);
+  } else {
+    if (humanReview) {
+      logger.info('Sentinel: 2+ providers failed, using fallback profanity filter', { errors });
+    }
+    const fallback = runProfanityFilter(messageText);
+    if (fallback.flagged) {
+      toxicityScore = fallback.toxicityScore;
+      flagged = true;
+    }
   }
 
-  const flagged = providerResults.some((r) => r.flagged && !r.error);
   const triggerDispute = !humanReview && toxicityScore >= env.TOXICITY_THRESHOLD;
 
   return {

@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
-import { env } from '../config/env';
-import { ChatMessage, Dispute } from '../models';
+import { ChatMessage } from '../models';
 import { runSentinelLayer } from '../ai/sentinel';
 import { createDisputeFromMessage } from './disputeService';
 import { logger } from '../utils/logger';
@@ -87,22 +86,6 @@ export async function getMessagesForRoom(
     message: m.message,
     toxicityScore: m.toxicityScore,
     flagged: m.flagged,
-    createdAt: m.createdAt,
-  }));
-}
-
-export async function getMessageBatchForDispute(
-  roomId: string,
-  limit = 50
-): Promise<Array<{ senderId: string; message: string; createdAt: Date }>> {
-  const messages = await ChatMessage.find({ roomId })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .select('senderId message createdAt')
-    .lean();
-  return messages.reverse().map((m) => ({
-    senderId: (m.senderId as mongoose.Types.ObjectId).toString(),
-    message: m.message,
     createdAt: m.createdAt,
   }));
 }

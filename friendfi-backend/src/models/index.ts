@@ -17,3 +17,4 @@ export {
   type AIProvider,
 } from './AITranscript';
 export { GameSession, type IGameSession } from './GameSession';
+export { Group, type IGroup } from './Group';

@@ -19,10 +19,10 @@ Production backend for FriendFi — real-time AI-mediated conflict resolution wi
 ```
 src/
   config/       # env, database, redis
-  models/       # Mongoose schemas (User, ChatMessage, Dispute, Vote, AITranscript, GameSession)
+  models/       # Mongoose schemas (User, ChatMessage, Dispute, Vote, AITranscript, GameSession, Group)
   routes/       # API routes
   controllers/  # Request handlers
-  services/     # auth, message, dispute, karma, game
+  services/     # auth, message, dispute, karma, game, group
   ai/           # providers (openai, gemini, claude, perplexity), sentinel, mediation
   middlewares/  # auth, rate limit, validation, error
   sockets/      # Socket.io handler (auth, rooms, messageSent, disputeCreated, voteCast, etc.)
@@ -88,6 +88,7 @@ Base path: `/api`.
 |------------|-----------|
 | Auth       | `POST /auth/signup`, `POST /auth/login`, `GET /auth/profile` |
 | Messages   | `POST /messages`, `GET /messages/room/:roomId` |
+| Groups     | `GET /groups`, `POST /groups`, `POST /groups/join` |
 | Disputes   | `GET /disputes/:disputeId`, `GET /disputes/room/:roomId`, `POST /disputes/:disputeId/vote`, `POST /disputes/:disputeId/close-voting` |
 | Leaderboard| `GET /leaderboard`, `GET /leaderboard/me` |
 | Game       | `GET /game/matchmaking`, `POST /game/end`, `GET /game/history` |
@@ -123,6 +124,12 @@ Import `postman/FriendFi-v4.1-API.postman_collection.json`. Set `baseUrl` to `ht
 4. **DAO voting:** `caseReady` → 60s timer → collect votes → quorum check → `closeVotingAndApplyVerdict` → karma updates, `verdictAnnounced`, `karmaUpdated`.
 5. **Karma:** FORGIVE (bully +5 if apology; jurors ± by alignment); SANCTION (bully -15, repeat multiplier; jurors +5 if aligned). Ranks: Observer → Juror (10) → Senior Juror (50) → Guardian (200).
 6. **Game:** Matchmaking restricted if karma &lt; 300; XP after game with karma multiplier.
+
+## Troubleshooting
+
+- **`TypeError: Cannot read properties of undefined (reading 'find')`** — Usually means a Mongoose model was not loaded. Ensure the model is exported from `src/models/index.ts` and imported from its file (e.g. `../models/Group`) in services.
+- **Sentinel / AI errors (429, 404, credit)** — Message moderation uses OpenAI, Gemini, and Claude. Rate limits or missing credits will log warnings and messages are marked for human review instead of auto-dispute.
+- **Redis connection** — Start Redis before the backend (e.g. WSL: `sudo service redis-server start`).
 
 ## License
 

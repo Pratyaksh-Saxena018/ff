@@ -1,10 +1,12 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { Shield, Zap, Star, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { SpriteAvatar } from "@/components/sprite-avatar"
 import Link from "next/link"
+import { clearStoredToken } from "@/lib/api"
 
 interface TopNavProps {
   courtMode: boolean
@@ -16,7 +18,13 @@ interface TopNavProps {
 }
 
 export function TopNav({ courtMode, onSimulateTrigger, karma, juryRank, activeTab, onTabChange }: TopNavProps) {
+  const router = useRouter()
   const tabs = ["Chat", "Court", "Profile"]
+
+  function handleLogout() {
+    clearStoredToken()
+    router.push("/login")
+  }
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur-sm">
@@ -75,11 +83,14 @@ export function TopNav({ courtMode, onSimulateTrigger, karma, juryRank, activeTa
           <span className="hidden sm:inline">{courtMode ? "End Court" : "Simulate Trigger"}</span>
         </Button>
         <SpriteAvatar color="blue" size={28} className="ring-2 ring-primary/30" />
-        <Link href="/login">
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
     </header>
   )

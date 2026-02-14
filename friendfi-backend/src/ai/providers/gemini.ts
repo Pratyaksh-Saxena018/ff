@@ -10,30 +10,31 @@ export function getGeminiClient(): GoogleGenerativeAI | null {
   return client;
 }
 
+const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-pro'];
+
 export async function geminiClassifyToxicity(text: string): Promise<{ toxicityScore: number; flagged: boolean }> {
   const gen = getGeminiClient();
   if (!gen) throw new Error('Gemini API key not configured');
 
-  const model = gen.getGenerativeModel({ model: 'gemini-1.5-flash' });
   const prompt = `You are a content safety classifier. Analyze this message for toxicity, harassment, hate, or harm.
 Reply with ONLY a JSON object: {"toxicityScore": 0-100, "flagged": true or false}
 Message: "${text.replace(/"/g, '\\"')}"`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), env.AI_TIMEOUT_MS);
-
-  try {
-    const result = await model.generateContent(prompt);
-    clearTimeout(timeoutId);
-    const response = result.response;
-    const content = response.text()?.trim() ?? '{}';
-    const parsed = parseJsonToxicity(content);
-    return parsed;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    logger.error('Gemini toxicity error', { error: err });
-    throw err;
+  let lastErr: Error | null = null;
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = gen.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const content = response.text()?.trim() ?? '{}';
+      return parseJsonToxicity(content);
+    } catch (err) {
+      lastErr = err as Error;
+      logger.warn(`Gemini toxicity (${modelName}) failed, trying next`, { error: (err as Error).message });
+    }
   }
+  logger.error('Gemini toxicity: all models failed', { error: lastErr?.message });
+  throw lastErr ?? new Error('Gemini failed');
 }
 
 export async function geminiChat(

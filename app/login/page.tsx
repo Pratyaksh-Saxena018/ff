@@ -3,10 +3,12 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Eye, EyeOff, Shield, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { apiLogin, setStoredToken } from "@/lib/api"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,14 +16,33 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
+    setError("")
+    if (!email.trim() || !password) {
+      setError("Please enter email and password.")
+      return
+    }
     setIsLoading(true)
-    setTimeout(() => {
+    try {
+      const result = await apiLogin(email.trim(), password)
+      if (result.success && result.token) {
+        setStoredToken(result.token)
+        toast.success("Signed in successfully")
+        router.push("/dashboard")
+        return
+      }
+      setError(result.error ?? "Invalid email or password.")
+      toast.error(result.error ?? "Login failed")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error. Is the backend running?"
+      setError(msg)
+      toast.error(msg)
+    } finally {
       setIsLoading(false)
-      router.push("/dashboard")
-    }, 1200)
+    }
   }
 
   return (
@@ -52,6 +73,11 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleLogin} className="flex flex-col gap-5">
+            {error && (
+              <p className="rounded-lg border border-[hsl(var(--neon-red))] bg-[hsl(var(--neon-red))/0.1] px-3 py-2 text-sm text-[hsl(var(--neon-red))]">
+                {error}
+              </p>
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-sm font-medium text-foreground">Email</Label>
               <Input

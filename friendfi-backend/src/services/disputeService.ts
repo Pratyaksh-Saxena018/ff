@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 import { env } from '../config/env';
 import { Dispute, Vote, ChatMessage, User } from '../models';
 import type { IDispute, FinalVerdict } from '../models';
-import { runSentinelLayer } from '../ai/sentinel';
 import {
   interviewBully,
   interviewVictim,
@@ -44,10 +43,6 @@ export async function createDisputeFromMessage(
       .lean()
       .session(session);
 
-    const bullyMessages = messages
-      .filter((m) => (m.senderId as { _id: mongoose.Types.ObjectId })?._id?.equals(senderId))
-      .map((m) => m.message)
-      .reverse();
     const victimCandidates = messages
       .filter((m) => !(m.senderId as { _id: mongoose.Types.ObjectId })?._id?.equals(senderId))
       .map((m) => ({ id: (m.senderId as { _id: mongoose.Types.ObjectId })._id, msg: m.message }));

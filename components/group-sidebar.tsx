@@ -22,8 +22,8 @@ interface GroupSidebarProps {
   groups: GroupChat[]
   activeGroupId: string
   onSelectGroup: (id: string) => void
-  onCreateGroup: (group: GroupChat) => void
-  onJoinGroup: (code: string) => boolean
+  onCreateGroup: (group: GroupChat) => void | Promise<void>
+  onJoinGroup: (code: string) => boolean | Promise<boolean>
 }
 
 export function GroupSidebar({ groups, activeGroupId, onSelectGroup, onCreateGroup, onJoinGroup }: GroupSidebarProps) {
@@ -33,9 +33,10 @@ export function GroupSidebar({ groups, activeGroupId, onSelectGroup, onCreateGro
   const [newDesc, setNewDesc] = useState("")
   const [joinCode, setJoinCode] = useState("")
   const [joinError, setJoinError] = useState("")
+  const [createLoading, setCreateLoading] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  function handleCreateGroup(e: React.FormEvent) {
+  async function handleCreateGroup(e: React.FormEvent) {
     e.preventDefault()
     if (!newName.trim()) return
     const newGroup: GroupChat = {
@@ -43,22 +44,24 @@ export function GroupSidebar({ groups, activeGroupId, onSelectGroup, onCreateGro
       name: newName.trim(),
       description: newDesc.trim(),
       inviteCode: generateInviteCode(),
-      members: ["user-1"],
-      createdBy: "user-1",
+      members: [],
+      createdBy: "",
       type: "general",
       isPrivate: true,
     }
-    onCreateGroup(newGroup)
+    setCreateLoading(true)
+    await Promise.resolve(onCreateGroup(newGroup))
+    setCreateLoading(false)
     setNewName("")
     setNewDesc("")
     setCreateOpen(false)
   }
 
-  function handleJoinGroup(e: React.FormEvent) {
+  async function handleJoinGroup(e: React.FormEvent) {
     e.preventDefault()
     setJoinError("")
     if (!joinCode.trim()) return
-    const success = onJoinGroup(joinCode.trim().toUpperCase())
+    const success = await Promise.resolve(onJoinGroup(joinCode.trim().toUpperCase()))
     if (success) {
       setJoinCode("")
       setJoinOpen(false)
@@ -166,8 +169,8 @@ export function GroupSidebar({ groups, activeGroupId, onSelectGroup, onCreateGro
                     rows={3}
                   />
                 </div>
-                <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  Create Group
+                <Button type="submit" disabled={createLoading} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  {createLoading ? "Creating…" : "Create Group"}
                 </Button>
               </form>
             </DialogContent>

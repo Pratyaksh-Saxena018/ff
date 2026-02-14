@@ -11,6 +11,7 @@ const envSchema = z.object({
   GEMINI_KEY: z.string().optional(),
   CLAUDE_KEY: z.string().optional(),
   PERPLEXITY_KEY: z.string().optional(),
+  GROQ_KEY: z.string().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('60000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
@@ -29,13 +30,13 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-/** Map user's env names to app names so both work */
 function normalizeEnv(processEnv: NodeJS.ProcessEnv): Record<string, string | undefined> {
   const e = { ...processEnv } as Record<string, string | undefined>;
   if (e.MONGO_URL && !e.MONGODB_URI) e.MONGODB_URI = e.MONGO_URL;
   if (e.OPEN_API_KEY && !e.OPENAI_KEY) e.OPENAI_KEY = e.OPEN_API_KEY;
   if (e.GEMINI_API_KEY && !e.GEMINI_KEY) e.GEMINI_KEY = e.GEMINI_API_KEY;
   if (e.ANTHROPIC_API_KEY && !e.CLAUDE_KEY) e.CLAUDE_KEY = e.ANTHROPIC_API_KEY;
+  if (e.GROQ_API_KEY && !e.GROQ_KEY) e.GROQ_KEY = e.GROQ_API_KEY;
   if (e.SECRET_KEY && !e.JWT_SECRET) e.JWT_SECRET = e.SECRET_KEY;
   return e;
 }

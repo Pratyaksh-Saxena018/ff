@@ -35,6 +35,7 @@ export type GroupChat = {
 
 export type Dispute = {
   id: number
+  disputeId?: string
   status: "investigating" | "ready" | "resolved"
   harmLevel: number
   remorseProbability: number
@@ -44,6 +45,11 @@ export type Dispute = {
   sanctionVotes: number
   totalVotes: number
   countdown: number
+  bullyUsername?: string
+  victimUsername?: string
+  bullyId?: string
+  victimId?: string
+  caseNumber?: string
 }
 
 export type AIAgent = {

@@ -3,10 +3,21 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Eye, EyeOff, Shield, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { apiSignUp, setStoredToken } from "@/lib/api"
+
+/** Backend expects username: 2–30 chars, letters, numbers, underscores only */
+function toUsername(displayName: string): string {
+  return displayName
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .slice(0, 30)
+}
 
 export default function SignupPage() {
   const router = useRouter()
@@ -16,17 +27,48 @@ export default function SignupPage() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  function handleSignup(e: React.FormEvent) {
+  async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
+    setError("")
+    const username = toUsername(name)
+    if (username.length < 2) {
+      setError("Display name must be at least 2 characters (letters, numbers, or underscores).")
+      toast.error("Invalid display name")
+      return
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.")
+      toast.error("Passwords do not match")
+      return
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.")
+      toast.error("Password too short")
+      return
+    }
     setIsLoading(true)
-    setTimeout(() => {
+    try {
+      const result = await apiSignUp(username, email.trim(), password)
+      if (result.success && result.token) {
+        setStoredToken(result.token)
+        toast.success("Account created successfully")
+        router.push("/dashboard")
+        return
+      }
+      setError(result.error ?? "Sign up failed.")
+      toast.error(result.error ?? "Sign up failed")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error. Is the backend running?"
+      setError(msg)
+      toast.error(msg)
+    } finally {
       setIsLoading(false)
-      router.push("/dashboard")
-    }, 1500)
+    }
   }
 
-  const passwordsMatch = password === confirmPassword || confirmPassword === ""
+  const passwordsMatch = password === confirmPassword
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -114,15 +156,20 @@ export default function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className={`h-11 border-border bg-secondary/50 text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 ${
-                  !passwordsMatch ? "border-[hsl(var(--neon-red))]" : ""
+                  confirmPassword.length > 0 && !passwordsMatch ? "border-[hsl(var(--neon-red))]" : ""
                 }`}
                 required
               />
-              {!passwordsMatch && (
+              {confirmPassword.length > 0 && !passwordsMatch && (
                 <p className="text-xs text-[hsl(var(--neon-red))]">Passwords do not match</p>
               )}
             </div>
 
+            {error && (
+              <p className="rounded-lg border border-[hsl(var(--neon-red))] bg-[hsl(var(--neon-red))/0.1] px-3 py-2 text-sm text-[hsl(var(--neon-red))]">
+                {error}
+              </p>
+            )}
             <Button
               type="submit"
               disabled={isLoading || !passwordsMatch}

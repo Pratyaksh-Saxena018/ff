@@ -12,9 +12,10 @@ interface JusticeDashboardProps {
   agents: AIAgent[]
   onVote: (vote: "forgive" | "sanction") => void
   courtMode: boolean
+  currentUserId?: string
 }
 
-export function JusticeDashboard({ dispute, agents, onVote, courtMode }: JusticeDashboardProps) {
+export function JusticeDashboard({ dispute, agents, onVote, courtMode, currentUserId }: JusticeDashboardProps) {
   const [countdown, setCountdown] = useState(dispute.countdown)
   const [hasVoted, setHasVoted] = useState(false)
 
@@ -55,9 +56,34 @@ export function JusticeDashboard({ dispute, agents, onVote, courtMode }: Justice
         <Scale className="h-4 w-4 text-[hsl(var(--neon-red))]" />
         <h3 className="text-sm font-semibold text-foreground">Active Dispute</h3>
         <Badge variant="outline" className="ml-auto border-[hsl(var(--neon-red))/0.3] text-[hsl(var(--neon-red))] text-[10px] font-mono">
-          #{dispute.id}
+          {dispute.caseNumber ?? `#${dispute.id}`}
         </Badge>
       </div>
+
+      {/* Victim & Bully Identification */}
+      {(dispute.bullyUsername || dispute.victimUsername) && (
+        <div className="border-b border-border px-4 py-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Parties</p>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between rounded-lg bg-[hsl(var(--neon-red))/0.1] px-3 py-2">
+              <span className="text-xs text-muted-foreground">Accused (Bully)</span>
+              <span className="text-xs font-medium text-[hsl(var(--neon-red))]">
+                {currentUserId && dispute.bullyId === currentUserId
+                  ? "You"
+                  : dispute.bullyUsername ?? "—"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-[hsl(var(--neon-green))/0.1] px-3 py-2">
+              <span className="text-xs text-muted-foreground">Affected (Victim)</span>
+              <span className="text-xs font-medium text-[hsl(var(--neon-green))]">
+                {currentUserId && dispute.victimId === currentUserId
+                  ? "You"
+                  : dispute.victimUsername ?? "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
         {/* AI Agent Status */}

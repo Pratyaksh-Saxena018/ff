@@ -4,15 +4,27 @@ import type { AuthRequest } from '../middlewares/authMiddleware';
 import { signUpSchema, loginSchema } from '../utils/validationSchemas';
 
 export async function handleSignUp(req: AuthRequest, res: Response): Promise<void> {
-  const body = signUpSchema.parse(req.body);
-  const { user, token } = await signUp(body);
-  res.status(201).json({ success: true, user, token });
+  try {
+    const body = signUpSchema.parse(req.body);
+    const { user, token } = await signUp(body);
+    res.status(201).json({ success: true, user, token });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Sign up failed';
+    const status = message.includes('already') ? 400 : 500;
+    res.status(status).json({ success: false, error: message });
+  }
 }
 
 export async function handleLogin(req: AuthRequest, res: Response): Promise<void> {
-  const body = loginSchema.parse(req.body);
-  const { user, token } = await login(body);
-  res.json({ success: true, user, token });
+  try {
+    const body = loginSchema.parse(req.body);
+    const { user, token } = await login(body);
+    res.json({ success: true, user, token });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Login failed';
+    const status = message.toLowerCase().includes('invalid') ? 401 : 500;
+    res.status(status).json({ success: false, error: message });
+  }
 }
 
 export async function handleGetProfile(req: AuthRequest, res: Response): Promise<void> {

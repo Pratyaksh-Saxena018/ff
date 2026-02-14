@@ -8,7 +8,7 @@ import { errorMiddleware } from './middlewares/errorMiddleware';
 const app = express();
 
 app.use(cors({
-  origin: env.CORS_ORIGINS.split(',').map((s) => s.trim()),
+  origin: env.CORS_ORIGINS.split(',').map((s: string) => s.trim()),
   credentials: true,
 }));
 app.use(express.json());

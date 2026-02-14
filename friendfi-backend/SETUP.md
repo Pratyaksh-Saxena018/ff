@@ -85,13 +85,13 @@ MongoDB Atlas connected
   Body: `{"email":"test@example.com","password":"password123"}`  
   Use the returned `token` in the `Authorization: Bearer <token>` header for other APIs.
 
-## 7. Frontend (Vercel)
+## 7. Frontend (Next.js / Vercel)
 
-Point your Vercel app to this backend:
-
-- **API base URL:** `http://localhost:4000/api` (local) or your deployed backend URL (e.g. `https://your-backend.railway.app/api`).
-- **Socket.io URL:** same host, e.g. `http://localhost:4000` (no `/api`).
-- In `.env`, `CORS_ORIGINS` already includes `http://localhost:3000` and `http://localhost:5173`. Add your Vercel URL when you deploy (e.g. `https://your-app.vercel.app`).
+- **Backend URL:** In the **frontend** project root, create `.env.local` (see repo root `.env.local.example`) and set:
+  - `NEXT_PUBLIC_API_URL=http://localhost:4000` (local backend) or your deployed backend URL.
+- The login and signup pages call `POST /api/auth/login` and `POST /api/auth/signup` on that URL. Ensure the backend is running and CORS allows your frontend origin.
+- **Socket.io URL:** same host as the API (e.g. `http://localhost:4000`), no `/api` path.
+- In the backend `.env`, `CORS_ORIGINS` already includes `http://localhost:3000` and `http://localhost:5173`. Add your Vercel URL when you deploy (e.g. `https://your-app.vercel.app`).
 
 ## Troubleshooting
 

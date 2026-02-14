@@ -13,9 +13,11 @@ interface ChatPanelProps {
   onSendMessage: (content: string) => void
   courtMode: boolean
   activeGroup: GroupChat | null
+  /** Current user's ID so "isMe" is correct (e.g. backend _id) */
+  currentUserId?: string | null
 }
 
-export function ChatPanel({ messages, onSendMessage, courtMode, activeGroup }: ChatPanelProps) {
+export function ChatPanel({ messages, onSendMessage, courtMode, activeGroup, currentUserId }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -105,7 +107,7 @@ export function ChatPanel({ messages, onSendMessage, courtMode, activeGroup }: C
         <div className="flex flex-col gap-4">
           {messages.map((msg) => {
             const isSystem = msg.userId === "system"
-            const isMe = msg.userId === "user-1"
+            const isMe = currentUserId != null ? msg.userId === currentUserId : msg.userId === "user-1"
             return (
               <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
                 <SpriteAvatar

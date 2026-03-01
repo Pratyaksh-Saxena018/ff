@@ -50,6 +50,7 @@ export type Dispute = {
   bullyId?: string
   victimId?: string
   caseNumber?: string
+  contextSummary?: string
 }
 
 export type AIAgent = {

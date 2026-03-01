@@ -20,6 +20,8 @@ export interface IUser extends Document {
   totalSanctionsReceived: number;
   totalApologiesGiven: number;
   reputationHistory: IReputationHistoryEntry[];
+  suspendedUntil: Date | null;
+  banned: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,7 +40,7 @@ const UserSchema = new Schema<IUser>(
     username: { type: String, required: true, unique: true, trim: true, index: true },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true, index: true },
     passwordHash: { type: String, required: true, select: false },
-    karmaScore: { type: Number, default: 500, index: true },
+    karmaScore: { type: Number, default: 100, index: true },
     juryAccuracy: { type: Number, default: 0 },
     gameXP: { type: Number, default: 0 },
     juryRank: {
@@ -50,6 +52,8 @@ const UserSchema = new Schema<IUser>(
     totalCasesParticipated: { type: Number, default: 0 },
     totalSanctionsReceived: { type: Number, default: 0 },
     totalApologiesGiven: { type: Number, default: 0 },
+    suspendedUntil: { type: Date, default: null },
+    banned: { type: Boolean, default: false, index: true },
     reputationHistory: {
       type: [ReputationHistoryEntrySchema],
       default: [],

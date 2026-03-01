@@ -111,6 +111,14 @@ export function JusticeDashboard({ dispute, agents, onVote, courtMode, currentUs
           </div>
         </div>
 
+        {/* AI Summary (Court Room) */}
+        {dispute.status === "ready" && dispute.contextSummary && (
+          <div className="rounded-lg border border-[hsl(var(--neon-amber))/0.3] bg-[hsl(var(--neon-amber))/0.05 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--neon-amber))]">AI Summary</p>
+            <p className="text-xs text-foreground/90 whitespace-pre-wrap">{dispute.contextSummary}</p>
+          </div>
+        )}
+
         {/* Case File */}
         {dispute.status === "ready" && (
           <div className="rounded-lg border border-border bg-secondary/20 p-3">

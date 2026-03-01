@@ -13,6 +13,12 @@ function rankForCases(casesParticipated: number): (typeof RANKS)[number] {
   return RANKS[Math.max(0, i)];
 }
 
+const MAX_DELTA = 10;
+
+function clampDelta(delta: number): number {
+  return Math.max(-MAX_DELTA, Math.min(MAX_DELTA, delta));
+}
+
 export async function applyVerdictKarma(
   disputeId: mongoose.Types.ObjectId,
   verdict: FinalVerdict,
@@ -33,34 +39,46 @@ export async function applyVerdictKarma(
     const bully = await User.findById(bullyId).select('+reputationHistory').session(session);
     if (!bully) throw new Error('Bully user not found');
 
-    const repeatOffender = bully.totalSanctionsReceived > 0;
-    const sanctionKarma = Math.round(
-      env.KARMA_SANCTION_BULLY * (repeatOffender ? env.REPEAT_OFFENDER_MULTIPLIER : 1)
-    );
-
+    let bullyDelta = 0;
     if (majorityVerdict === 'FORGIVE') {
       if (apologyOffered) {
-        bully.karmaScore += env.KARMA_FORGIVE_BULLY;
+        bullyDelta = clampDelta(env.KARMA_FORGIVE_BULLY);
+        bully.karmaScore += bullyDelta;
         bully.totalApologiesGiven += 1;
-        appendReputation(bully, env.KARMA_FORGIVE_BULLY, 'Apology accepted');
+        appendReputation(bully, bullyDelta, 'Apology accepted');
       }
     } else {
-      bully.karmaScore += sanctionKarma;
+      const raw = env.KARMA_SANCTION_BULLY * (bully.totalSanctionsReceived > 0 ? env.REPEAT_OFFENDER_MULTIPLIER : 1);
+      bullyDelta = clampDelta(Math.round(raw));
+      bully.karmaScore += bullyDelta;
       bully.totalSanctionsReceived += 1;
-      appendReputation(bully, sanctionKarma, 'Sanction applied');
+      appendReputation(bully, bullyDelta, 'Sanction applied');
     }
+    await applySuspensionOrBan(bully, session);
     await bully.save({ session });
+
+    const victimId = dispute.victimId;
+    const victim = await User.findById(victimId).select('+reputationHistory').session(session);
+    if (victim) {
+      const victimDelta = clampDelta(env.KARMA_VICTIM_RESTORED ?? 10);
+      victim.karmaScore += victimDelta;
+      appendReputation(victim, victimDelta, 'Restored after dispute');
+      await applySuspensionOrBan(victim, session);
+      await victim.save({ session });
+    }
 
     for (const v of votes) {
       const juror = await User.findById(v.voterId).select('+reputationHistory').session(session);
       if (!juror) continue;
       juror.totalCasesParticipated += 1;
       const aligned = v.vote === majorityVerdict;
-      const delta = aligned ? env.KARMA_JUROR_ALIGNED : env.KARMA_JUROR_MISALIGNED;
+      const rawDelta = aligned ? env.KARMA_JUROR_ALIGNED : env.KARMA_JUROR_MISALIGNED;
+      const delta = clampDelta(rawDelta);
       juror.karmaScore += delta;
       juror.juryAccuracy = (juror.juryAccuracy * (juror.totalCasesParticipated - 1) + (aligned ? 1 : 0)) / juror.totalCasesParticipated;
       juror.juryRank = rankForCases(juror.totalCasesParticipated);
       appendReputation(juror, delta, aligned ? 'Vote aligned with majority' : 'Vote misaligned');
+      await applySuspensionOrBan(juror, session);
       await juror.save({ session });
     }
 
@@ -72,6 +90,20 @@ export async function applyVerdictKarma(
     throw e;
   } finally {
     session.endSession();
+  }
+}
+
+async function applySuspensionOrBan(
+  user: mongoose.Document & { karmaScore: number; suspendedUntil?: Date | null; banned?: boolean },
+  _session: mongoose.ClientSession
+): Promise<void> {
+  if (user.karmaScore < env.KARMA_BAN_THRESHOLD) {
+    user.set('banned', true);
+    user.set('suspendedUntil', null);
+  } else if (user.karmaScore < env.KARMA_SUSPEND_THRESHOLD) {
+    const until = new Date();
+    until.setDate(until.getDate() + env.SUSPENSION_DAYS);
+    user.set('suspendedUntil', until);
   }
 }
 

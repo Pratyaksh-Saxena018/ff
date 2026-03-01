@@ -6,7 +6,7 @@ import { env } from '../config/env';
 import { getRedisPublisher, getRedisSubscriber } from '../config/redis';
 import { User } from '../models';
 import { logger, auditLogger } from '../utils/logger';
-import { runMediationPipeline, closeVotingAndApplyVerdict } from '../services/disputeService';
+import { startClarificationTimer, resetClarificationTimer, extractDisputeIdFromRoom } from '../services/disputeTimerService';
 import mongoose from 'mongoose';
 
 export interface AuthenticatedSocket extends Socket {
@@ -39,8 +39,11 @@ export function initSocketServer(httpServer: HttpServer): Server {
     }
     try {
       const decoded = jwt.verify(token as string, env.JWT_SECRET) as { sub: string };
-      const user = await User.findById(decoded.sub).select('_id').lean();
+      const user = await User.findById(decoded.sub).select('_id banned suspendedUntil').lean();
       if (!user) return next(new Error('User not found'));
+      const u = user as { _id: unknown; banned?: boolean; suspendedUntil?: Date | null };
+      if (u.banned) return next(new Error('Account is banned'));
+      if (u.suspendedUntil && new Date(u.suspendedUntil) > new Date()) return next(new Error('Account is suspended'));
       socket.userId = decoded.sub;
       next();
     } catch (e) {
@@ -152,18 +155,32 @@ export function initSocketServer(httpServer: HttpServer): Server {
               }
             });
             io?.to(payload.roomId).emit('aiProgressUpdate', { disputeId: disputeIdObj, stage: 'investigating' });
-            runMediationPipeline(disputeIdObj)
-              .then(() => {
-                emitCaseReady(disputeIdObj.toString());
-                setTimeout(() => {
-                  closeVotingAndApplyVerdict(disputeIdObj).then((verdict) => {
-                    if (verdict) {
-                      emitVerdict(disputeIdObj.toString(), verdict);
-                    }
-                  }).catch((e) => logger.error('Close voting failed', { error: e }));
-                }, env.VOTE_TIMER_SECONDS * 1000);
+            startClarificationTimer(disputeIdObj);
+          }
+        } else {
+          const disputeIdFromRoom = extractDisputeIdFromRoom(payload.roomId);
+          if (disputeIdFromRoom) {
+            resetClarificationTimer(disputeIdFromRoom);
+            const role = payload.roomId.startsWith('reflection-') ? 'bully' : 'victim';
+            const { generateClarificationResponse } = await import('../ai/clarificationChatbot');
+            const { getMessagesForRoom } = await import('../services/messageService');
+            const prior = await getMessagesForRoom(payload.roomId, 5);
+            const priorContext = prior
+              .slice(0, -1)
+              .map((m: { message?: string }) => m.message)
+              .filter(Boolean)
+              .join(' | ');
+            generateClarificationResponse(role, payload.message, priorContext || undefined)
+              .then((aiMessage) => {
+                if (aiMessage) {
+                  io?.to(payload.roomId).emit('aiClarificationResponse', {
+                    roomId: payload.roomId,
+                    message: aiMessage,
+                    disputeId: disputeIdFromRoom,
+                  });
+                }
               })
-              .catch((e) => logger.error('Mediation pipeline failed', { error: e }));
+              .catch((e) => logger.warn('Clarification AI failed', { error: (e as Error).message }));
           }
         }
       } catch (e) {

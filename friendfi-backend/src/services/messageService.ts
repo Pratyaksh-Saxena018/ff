@@ -19,6 +19,10 @@ export interface SendMessageResult {
   humanReview: boolean;
 }
 
+function isIsolationRoom(roomId: string): boolean {
+  return roomId.startsWith('reflection-') || roomId.startsWith('safety-');
+}
+
 export async function sendMessage(input: SendMessageInput): Promise<SendMessageResult> {
   const doc = await ChatMessage.create({
     roomId: input.roomId,
@@ -31,6 +35,17 @@ export async function sendMessage(input: SendMessageInput): Promise<SendMessageR
   let disputeCreated = false;
   let disputeId: string | undefined;
   let humanReview = false;
+
+  if (isIsolationRoom(input.roomId)) {
+    await ChatMessage.updateOne({ _id: doc._id }, { $set: { toxicityScore: 0, flagged: false } });
+    return {
+      messageId: (doc._id as mongoose.Types.ObjectId).toString(),
+      toxicityScore: 0,
+      flagged: false,
+      disputeCreated: false,
+      humanReview: false,
+    };
+  }
 
   try {
     const sentinel = await runSentinelLayer(input.message);

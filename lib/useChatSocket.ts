@@ -67,6 +67,23 @@ export interface VerdictPayload {
   verdict?: string
 }
 
+export interface SummaryReadyPayload {
+  disputeId: string
+  summary: {
+    intentClassification?: string
+    harmLevel?: number
+    remorseProbability?: number
+    apologyOffered?: boolean
+    contextSummary?: string
+  }
+}
+
+export interface AIClarificationPayload {
+  roomId: string
+  message: string
+  disputeId: string
+}
+
 export function useChatSocket(options: {
   onMessageSent: (payload: MessageSentPayload) => void
   onDisputeCreated?: (payload: DisputeCreatedPayload) => void
@@ -75,6 +92,8 @@ export function useChatSocket(options: {
   onCaseReady?: (payload: CaseReadyPayload) => void
   onVoteCast?: (payload: VoteCastPayload) => void
   onVerdictAnnounced?: (payload: VerdictPayload) => void
+  onSummaryReady?: (payload: SummaryReadyPayload) => void
+  onAIClarification?: (payload: AIClarificationPayload) => void
   enabled: boolean
 }) {
   const {
@@ -85,6 +104,8 @@ export function useChatSocket(options: {
     onCaseReady,
     onVoteCast,
     onVerdictAnnounced,
+    onSummaryReady,
+    onAIClarification,
     enabled,
   } = options
   const socketRef = useRef<Socket | null>(null)
@@ -95,6 +116,8 @@ export function useChatSocket(options: {
   const onCaseReadyRef = useRef(onCaseReady)
   const onVoteCastRef = useRef(onVoteCast)
   const onVerdictRef = useRef(onVerdictAnnounced)
+  const onSummaryRef = useRef(onSummaryReady)
+  const onAIClarRef = useRef(onAIClarification)
   onMessageRef.current = onMessageSent
   onDisputeRef.current = onDisputeCreated
   onCourtRef.current = onCourtModeActivated
@@ -102,6 +125,8 @@ export function useChatSocket(options: {
   onCaseReadyRef.current = onCaseReady
   onVoteCastRef.current = onVoteCast
   onVerdictRef.current = onVerdictAnnounced
+  onSummaryRef.current = onSummaryReady
+  onAIClarRef.current = onAIClarification
 
   useEffect(() => {
     if (!enabled) return
@@ -135,6 +160,12 @@ export function useChatSocket(options: {
     })
     socket.on("verdictAnnounced", (payload: VerdictPayload) => {
       onVerdictRef.current?.(payload)
+    })
+    socket.on("summaryReady", (payload: SummaryReadyPayload) => {
+      onSummaryRef.current?.(payload)
+    })
+    socket.on("aiClarificationResponse", (payload: AIClarificationPayload) => {
+      onAIClarRef.current?.(payload)
     })
 
     socket.on("connect_error", () => {

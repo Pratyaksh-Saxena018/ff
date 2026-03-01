@@ -87,23 +87,22 @@ export async function runMediationPipeline(disputeId: mongoose.Types.ObjectId): 
   const dispute = await Dispute.findById(disputeId).lean();
   if (!dispute || dispute.status !== 'INVESTIGATING') return;
 
-  const bullyMessages = await ChatMessage.find({
-    roomId: dispute.roomId,
-    senderId: dispute.bullyId,
-  })
-    .sort({ createdAt: 1 })
-    .limit(20)
-    .lean();
-  const victimMessages = await ChatMessage.find({
-    roomId: dispute.roomId,
-    senderId: dispute.victimId,
-  })
-    .sort({ createdAt: 1 })
-    .limit(20)
-    .lean();
+  const bullyRoom = `reflection-${disputeId}`;
+  const victimRoom = `safety-${disputeId}`;
 
-  const bullyBatch = bullyMessages.map((m) => m.message);
-  const victimBatch = victimMessages.map((m) => m.message);
+  const [mainBully, mainVictim, reflectionBully, safetyVictim] = await Promise.all([
+    ChatMessage.find({ roomId: dispute.roomId, senderId: dispute.bullyId }).sort({ createdAt: 1 }).limit(20).lean(),
+    ChatMessage.find({ roomId: dispute.roomId, senderId: dispute.victimId }).sort({ createdAt: 1 }).limit(20).lean(),
+    ChatMessage.find({ roomId: bullyRoom, senderId: dispute.bullyId }).sort({ createdAt: 1 }).limit(20).lean(),
+    ChatMessage.find({ roomId: victimRoom, senderId: dispute.victimId }).sort({ createdAt: 1 }).limit(20).lean(),
+  ]);
+
+  const bullyBatch = [...mainBully, ...reflectionBully]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((m) => m.message);
+  const victimBatch = [...mainVictim, ...safetyVictim]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((m) => m.message);
 
   const [bullyResult, victimResult] = await Promise.all([
     interviewBully(disputeId, bullyBatch, victimBatch),

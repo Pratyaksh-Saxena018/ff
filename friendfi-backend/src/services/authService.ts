@@ -54,6 +54,11 @@ export async function login(input: LoginInput): Promise<{ user: Omit<IUser, 'pas
   const user = await User.findOne({ email: input.email.toLowerCase() }).select('+passwordHash');
   if (!user || !user.passwordHash) throw new Error('Invalid email or password');
 
+  if (user.banned) throw new Error('Account is permanently banned');
+  if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
+    throw new Error(`Account suspended until ${(user.suspendedUntil as Date).toISOString()}`);
+  }
+
   const valid = await verifyPassword(input.password, user.passwordHash);
   if (!valid) {
     auditLogger.warn('Failed login attempt', { email: input.email });

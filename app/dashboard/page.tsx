@@ -29,7 +29,7 @@ import {
   type ApiMessage,
   type ApiGroup,
 } from "@/lib/api"
-import { useChatSocket, type MessageSentPayload } from "@/lib/useChatSocket"
+import { useChatSocket, type MessageSentPayload, type SummaryReadyPayload, type AIClarificationPayload } from "@/lib/useChatSocket"
 
 function apiMessageToMessage(m: ApiMessage): Message {
   const sender = typeof m.senderId === "object" && m.senderId !== null ? m.senderId : null
@@ -255,6 +255,36 @@ export default function DashboardPage() {
       setCourtMode(false)
       toast(`Verdict: ${p.verdict ?? "closed"}`)
       isolationRoomRef.current = null
+    }, []),
+    onSummaryReady: useCallback((p: SummaryReadyPayload) => {
+      setDispute((prev) => {
+        if (prev.disputeId !== p.disputeId) return prev
+        const s = p.summary
+        return {
+          ...prev,
+          intentClassification: s.intentClassification ?? prev.intentClassification,
+          harmLevel: s.harmLevel ?? prev.harmLevel,
+          remorseProbability: s.remorseProbability ?? prev.remorseProbability,
+          apologyOffered: s.apologyOffered ?? prev.apologyOffered,
+          contextSummary: s.contextSummary ?? prev.contextSummary,
+        }
+      })
+      toast("AI summary ready. Case file prepared for vote.")
+    }, []),
+    onAIClarification: useCallback((p: AIClarificationPayload) => {
+      setMessages((prev) => {
+        const aiMsg: Message = {
+          id: `ai-${p.roomId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          userId: "system",
+          userName: "AI",
+          avatar: "AI",
+          avatarColor: "purple",
+          content: p.message,
+          timestamp: new Date(),
+          roomId: p.roomId,
+        }
+        return [...prev, aiMsg]
+      })
     }, []),
   })
 

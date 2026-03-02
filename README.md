@@ -372,4 +372,4 @@ For a shorter run guide, see **[RUN.md](RUN.md)**.
 
 ## License
 
-Proprietary.
+Proprietary

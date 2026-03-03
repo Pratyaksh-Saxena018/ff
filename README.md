@@ -373,3 +373,11 @@ For a shorter run guide, see **[RUN.md](RUN.md)**.
 ## License
 
 Proprietary
+
+
+<img width="1884" height="982" alt="Screenshot 2026-03-03 201927" src="https://github.com/user-attachments/assets/416f19cd-147a-4664-9693-83053761fbed" />
+<img width="1911" height="1046" alt="Screenshot 2026-03-03 201738" src="https://github.com/user-attachments/assets/c6ea903a-c754-4094-a4bf-aa5f99ee68a6" />
+<img width="1914" height="1017" alt="Screenshot 2026-03-03 201449" src="https://github.com/user-attachments/assets/a5fc8d11-c71e-42a1-8f89-7cd97e48edcb" />
+<img width="1912" height="1061" alt="Screenshot 2026-03-03 201350" src="https://github.com/user-attachments/assets/dfb83fbb-44b3-44fb-8e8d-a11e4835ca04" />
+<img width="1907" height="1058" alt="Screenshot 2026-03-03 201249" src="https://github.com/user-attachments/assets/7de2a88e-e2be-4bb6-98ad-87f5a8e7f982" />
+
